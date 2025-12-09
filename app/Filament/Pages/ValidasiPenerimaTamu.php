@@ -4,13 +4,23 @@ namespace App\Filament\Pages;
 
 use Filament\Pages\Page;
 use App\Models\Tamu;
-use Illuminate\Support\Facades\Storage; // Untuk simpan file gambar
-use App\Models\TandaTangan; // Load model tanda tangan
+use App\Models\TandaTangan;
+use Filament\Forms\Concerns\InteractsWithForms;
+use Filament\Forms\Contracts\HasForms;
+use Filament\Tables\Concerns\InteractsWithTable;
+use Filament\Tables\Contracts\HasTable;
+use Filament\Tables\Table;
+use Filament\Actions\Action;
+use Filament\Tables\Columns\TextColumn;
 use Filament\Notifications\Notification;
+use Illuminate\Support\Facades\Storage;
 use BackedEnum;
 
-class ValidasiPenerimaTamu extends Page
+class ValidasiPenerimaTamu extends Page implements HasForms, HasTable
 {
+    use InteractsWithTable;
+    use InteractsWithForms;
+
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-qr-code';
     protected static ?string $navigationLabel = 'Validasi Penerima Tamu';
     protected static ?string $title = 'Validasi Penerima Tamu';
@@ -21,235 +31,217 @@ class ValidasiPenerimaTamu extends Page
         return auth()->user()?->can('View:ValidasiPenerimaTamu');
     }
 
-    // State Data Tamu
-    public $tamu_id;
+    // State Scanner & Filter Tabel
+    public $qr_code_search = '';
+
+    // State Data Tamu (Untuk Edit)
+    public ?Tamu $selectedTamu = null; // Model asli
+
+    // Properti Form (Agar bisa diedit)
     public $nama;
-    public $nopol_kendaraan;
-    public $jumlah_tamu;
-    public $keperluan;
-    public $jabatan;
-    public $no_hp;
     public $instansi;
+    public $keperluan;
     public $penerima_tamu;
-    public $bidang_usaha;
-
-    // Properti Tambahan (Sesuai View & DB)
-    public $tanggal;
-    public $divisi_id;
-    public $status_tamu;
-    public $agenda;
-    public $keterangan;
-
-    // Default Array Kosong (PENTING AGAR TIDAK ERROR COUNT NULL)
-    public $pengirings_list = [];
+    public $jumlah_tamu;
+    public $nopol_kendaraan;
 
     // Tanda Tangan
     public $ttd_penerima_base64;
 
-    public $is_found = false;
-    public $qr_manual = '';
+    public function mount()
+    {
+        $this->resetValidasi();
+    }
 
-    // ... (Fungsi cekQr dan cariManual sama seperti sebelumnya) ...
+    // --- REVISI 5: AUTO-SEARCH FUNCTION ---
+    public function updatedQrCodeSearch($value)
+    {
+        // Hanya mencari jika input tidak kosong
+        if (!empty($value)) {
+            $this->cekQr($value);
+        } else {
+            // Jika dikosongkan, reset tabel
+            $this->resetTable();
+        }
+    }
+
+    // --- LOGIKA CEK QR ---
     public function cekQr($code)
     {
-        $this->qr_manual = $code;
-        $this->prosesCari($code);
-    }
+        // Cari data berdasarkan QR
+        $tamu = Tamu::where('qr_code', $code)->first();
 
-    public function cariManual()
-    {
-        if (empty($this->qr_manual)) {
-            Notification::make()->warning()->title('Harap isi kode QR')->send();
+        if (!$tamu) {
+            Notification::make()->danger()->title('Data QR Tidak Ditemukan')->send();
+            $this->resetTable(); // Kosongkan tabel
             return;
         }
-        $this->prosesCari($this->qr_manual);
-    }
 
-    // --- LOGIC PENCARIAN DIPERBAIKI ---
-    private function prosesCari($code)
-    {
-        // Ambil Tamu beserta relasi pengirings
-        $tamu = Tamu::where('qr_code', $code)->with('pengiring')->first();
-
-        if ($tamu->id_visit_status != 3) {
-            $this->resetForm();
-            Notification::make()
-                ->danger()
-                ->title('Anda belum validasi operator.')
+        if ($tamu->id_visit_status == 1) {
+            Notification::make()->warning()
+                ->title('Tamu Belum Validasi Satpam!')
+                ->body('Tamu ini belum divalidasi.')
+                ->persistent()
                 ->send();
+            $this->resetTable();
+            return;
+        }
+        // Cek Status (Revisi 1 Sebelumnya)
+        if ($tamu->id_visit_status == 4) {
+            Notification::make()->warning()
+                ->title('Tamu Sudah Divalidasi Sebelumnya!')
+                ->body('Tamu ini sudah melakukan Check-In.')
+                ->persistent()
+                ->send();
+            $this->resetTable();
             return;
         }
 
-        if ($tamu) {
-            $this->tamu_id = $tamu->id;
-            $this->nama = $tamu->nama;
-            $this->nopol_kendaraan = $tamu->nopol_kendaraan;
-            $this->jumlah_tamu = $tamu->jumlah_tamu;
-            $this->keperluan = $tamu->keperluan;
-            $this->jabatan = $tamu->jabatan;
-            $this->no_hp = $tamu->no_hp;
-            $this->instansi = $tamu->instansi;
-            $this->penerima_tamu = $tamu->penerima_tamu;
-            $this->bidang_usaha = $tamu->bidang_usaha;
-
-            // Kolom tanggal & status (Sesuaikan nama kolom di DB jika beda)
-            $this->tanggal = $tamu->created_at->format('Y-m-d');
-            $this->divisi_id = $tamu->id_divisi;
-            $this->status_tamu = $tamu->status_tamu;
-
-            // Asumsi agenda/ket ada di tabel tamus (jika tidak ada, hapus baris ini)
-            $this->agenda = $tamu->keperluan;
-            $this->keterangan = '-';
-
-            // --- AMBIL DATA DARI TABEL TAMU_PENGIRINGS ---
-            // Kita ubah Collection jadi Array agar bisa di-loop di View
-            if ($tamu->pengirings) {
-                $this->pengirings_list = $tamu->pengirings->toArray();
-            } else {
-                $this->pengirings_list = [];
-            }
-            // ----------------------------------------------
-
-            $this->is_found = true;
-            Notification::make()->success()->title('Data Tamu Ditemukan!')->send();
-        } else {
-            $this->resetForm(); // Reset semua jika tidak ketemu
-            Notification::make()->danger()->title('QR Code Tidak Terdaftar!')->send();
+        if ($tamu->id_visit_status == 6) {
+            Notification::make()->danger()
+                ->title('Tamu Sudah Ditolak!')
+                ->body('Validasi untuk tamu ini sebelumnya telah ditolak.')
+                ->persistent()
+                ->send();
+            $this->resetTable();
+            return;
         }
+
+        // Jika Status == 1 (Pending/Baru), Lanjut tampilkan di tabel
+        $this->qr_code_search = $code;
+        $this->resetTable();
+        Notification::make()->success()->title('Data Ditemukan. Silakan klik Validasi di tabel.')->send();
     }
 
-    // --- LOGIC SIMPAN DIPERBAIKI ---
+    public function table(Table $table): Table
+    {
+        return $table
+            ->query(function () {
+                $query = Tamu::query();
+                if ($this->qr_code_search) {
+                    // Hanya tampilkan tamu yang statusnya 1 (Pending)
+                    $query->where('qr_code', $this->qr_code_search)->where('id_visit_status', 3);
+                } else {
+                    $query->whereRaw('3 = 0'); // Sembunyikan jika kosong
+                }
+                return $query;
+            })
+            ->columns([
+                TextColumn::make('created_at')->label('Tanggal')->date('d M Y H:i'),
+                TextColumn::make('nama'),
+                TextColumn::make('instansi'),
+
+            ])
+            ->actions([
+                Action::make('proses_validasi')
+                    ->label('Validasi')
+                    ->icon('heroicon-o-pencil-square')
+                    ->button()
+                    ->color('primary')
+                    ->action(fn(Tamu $record) => $this->pilihTamu($record)),
+            ]);
+    }
+
+    public function pilihTamu(Tamu $tamu)
+    {
+        // Cek lagi statusnya (double check)
+        if ($tamu->id_visit_status == 1 || $tamu->id_visit_status == 6 || $tamu->id_visit_status == 4) {
+            Notification::make()->warning()->title('Status tamu tidak valid untuk diproses.')->send();
+            return;
+        }
+
+        $this->selectedTamu = $tamu;
+
+        // Pindahkan data DB ke properti form agar bisa diedit
+        $this->nama = $tamu->nama;
+        $this->instansi = $tamu->instansi;
+        $this->keperluan = $tamu->keperluan;
+        $this->penerima_tamu = $tamu->penerima_tamu;
+        $this->jumlah_tamu = $tamu->jumlah_tamu;
+        $this->nopol_kendaraan = $tamu->nopol_kendaraan;
+    }
+
     public function simpanValidasi()
     {
-        $tamu = Tamu::find($this->tamu_id);
+        if (!$this->selectedTamu) return;
 
-        if ($tamu) {
-
-            // 1. Cek Tanda Tangan
-            if (empty($this->ttd_penerima_base64)) {
-                Notification::make()->danger()->title('Tanda tangan penerima wajib diisi!')->send();
-                return;
-            }
-
-            // 2. Update Data Utama
-            $tamu->update([
-                'nama' => $this->nama,
-                'nopol_kendaraan' => $this->nopol_kendaraan,
-                'jumlah_tamu' => $this->jumlah_tamu,
-                'id_visit_status' =>  4,
-            ]);
-
-            /*
-        |--------------------------------------------------------------------------
-        | 3. Simpan TTD Penerima (FILE) ke STORAGE, BUKAN BASE64 KE DATABASE
-        |--------------------------------------------------------------------------
-        */
-
-            // Hilangkan prefix base64
-            $image = str_replace('data:image/png;base64,', '', $this->ttd_penerima_base64);
-            $image = str_replace(' ', '+', $image);
-            $imageData = base64_decode($image);
-
-            // Nama file unik
-            $filename = 'ttd_penerima_' . $tamu->id . '_' . time() . '.png';
-
-            // Simpan ke storage/app/public/ttd
-            Storage::disk('public')->put('ttd_penerima/' . $filename, $imageData);
-
-            // Simpan PATH ke database
-            TandaTangan::updateOrCreate(
-                ['id_tamu' => $tamu->id],
-                [
-                    'ttd_penerima' => 'ttd_penerima/' . $filename,
-                    'nama_satpam' => auth()->user()->name,
-                    'updated_at' => now(),
-                ]
-            );
-
-            Notification::make()->success()->title('Validasi Penerima Tamu berhasil')->send();
-            $this->resetForm();
+        if (empty($this->ttd_penerima_base64)) {
+            Notification::make()->danger()->title('Tanda tangan penerima wajib diisi!')->send();
+            return;
         }
+
+        // Update Semua Data yang mungkin diedit
+        $this->selectedTamu->update([
+            'nama' => $this->nama,
+            'instansi' => $this->instansi,
+            'keperluan' => $this->keperluan,
+            'penerima_tamu' => $this->penerima_tamu,
+            'jumlah_tamu' => $this->jumlah_tamu,
+            'nopol_kendaraan' => $this->nopol_kendaraan,
+            'id_visit_status' =>  4,
+        ]);
+
+        $this->simpanGambarTTD($this->selectedTamu->id);
+
+        Notification::make()->success()->title('Tamu Telah Bertemu Penerima Tamu')->send();
+        $this->resetValidasi();
     }
 
     // public function simpanTolakValidasi()
     // {
-    //     $tamu = Tamu::find($this->tamu_id);
+    //     if (!$this->selectedTamu) return;
 
-    //     if ($tamu) {
-
-    //         // 1. Cek Tanda Tangan
-    //         if (empty($this->ttd_penerima_base64)) {
-    //             Notification::make()->danger()->title('Tanda tangan penerima tamu wajib diisi!')->send();
-    //             return;
-    //         }
-
-    //         // 2. Update Data Utama
-    //         $tamu->update([
-    //             'nama' => $this->nama,
-    //             'nopol_kendaraan' => $this->nopol_kendaraan,
-    //             'jumlah_tamu' => $this->jumlah_tamu,
-    //             // 'status_tamu' => 'Check In',
-    //             'id_visit_status' =>  6,
-    //         ]);
-
-    //         /*
-    //     |--------------------------------------------------------------------------
-    //     | 3. Simpan TTD Penerima Tamu (FILE) ke STORAGE, BUKAN BASE64 KE DATABASE
-    //     |--------------------------------------------------------------------------
-    //     */
-
-    //         // Hilangkan prefix base64
-    //         $image = str_replace('data:image/png;base64,', '', $this->ttd_penerima_base64);
-    //         $image = str_replace(' ', '+', $image);
-    //         $imageData = base64_decode($image);
-
-    //         // Nama file unik
-    //         $filename = 'ttd_satpam_' . $tamu->id . '_' . time() . '.png';
-
-    //         // Simpan ke storage/app/public/ttd
-    //         Storage::disk('public')->put('ttd/' . $filename, $imageData);
-
-    //         // Simpan PATH ke database
-    //         TandaTangan::updateOrCreate(
-    //             ['id_tamu' => $tamu->id],
-    //             [
-    //                 'ttd_satpam' => 'ttd/' . $filename,
-    //                 'updated_at' => now(),
-    //             ]
-    //         );
-
-    //         Notification::make()->success()->title('Validasi Tamu Di Tolak')->send();
-    //         $this->resetForm();
+    //     if (empty($this->ttd_satpam_base64)) {
+    //         Notification::make()->danger()->title('Tanda tangan satpam wajib diisi!')->send();
+    //         return;
     //     }
+
+    //     // Update status tolak, tapi data edit tetap disimpan
+    //     $this->selectedTamu->update([
+    //         'nama' => $this->nama,
+    //         'instansi' => $this->instansi,
+    //         'nopol_kendaraan' => $this->nopol_kendaraan,
+    //         'id_visit_status' =>  6, // Set jadi Ditolak
+    //     ]);
+
+    //     $this->simpanGambarTTD($this->selectedTamu->id);
+
+    //     Notification::make()->success()->title('Validasi Tamu Ditolak')->send();
+    //     $this->resetValidasi();
     // }
 
-    public function resetForm()
+    private function simpanGambarTTD($tamuId)
     {
-        $this->reset([
-            'tamu_id',
-            'nama',
-            'nopol_kendaraan',
-            'jumlah_tamu',
-            'keperluan',
-            'jabatan',
-            'instansi',
-            'penerima_tamu',
-            'bidang_usaha',
-            'no_hp',
-            'is_found',
-            'qr_manual',
-            'tanggal',
-            'divisi_id',
-            'status_tamu',
-            'agenda',
-            'keterangan',
-            'pengirings_list',
-            'ttd_penerima_base64'
-        ]);
+        $image = str_replace('data:image/png;base64,', '', $this->ttd_penerima_base64);
+        $image = str_replace(' ', '+', $image);
+        $imageData = base64_decode($image);
+        $filename = 'ttd_penerima_' . $tamuId . '_' . time() . '.png';
 
-        // Pastikan list di-reset ke array kosong
-        $this->pengirings_list = [];
+        Storage::disk('public')->put('ttd_penerima/' . $filename, $imageData);
 
+        TandaTangan::updateOrCreate(
+            ['id_tamu' => $tamuId],
+            [
+                'ttd_penerima' => 'ttd_penerima/' . $filename,
+                'nama_penerima' => auth()->user()->name,
+                'updated_at' => now(),
+            ]
+        );
+    }
+
+    // REVISI 4: FULL RESET FUNCTION
+    public function resetValidasi()
+    {
+        $this->selectedTamu = null;
+        // Reset semua properti form dan pencarian
+        $this->reset(['nama', 'instansi', 'keperluan', 'penerima_tamu', 'jumlah_tamu', 'nopol_kendaraan', 'ttd_penerima_base64', 'qr_code_search']);
+        $this->resetTable();
+        // Dispatch event untuk mereset scanner jika sedang aktif
         $this->dispatch('form-reset');
+    }
+
+    public function batalValidasi()
+    {
+        $this->selectedTamu = null;
     }
 }

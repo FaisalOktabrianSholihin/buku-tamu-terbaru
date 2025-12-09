@@ -25,11 +25,82 @@
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
         }
 
-        h2 {
-            text-align: center;
-            color: #333;
+        /* --- MULAI: CSS KHUSUS HEADER (PENGGANTI TAILWIND) --- */
+        .header-container {
+            display: flex;
+            flex-direction: row;
+            flex-wrap: nowrap;
+            /* PENTING: Agar tidak turun ke bawah */
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
             margin-bottom: 30px;
+            border-bottom: 2px solid #f0f0f0;
+            /* Garis tipis pemisah header */
+            padding-bottom: 15px;
         }
+
+        .logo-wrapper {
+            /* Responsif: Di HP lebar 18%, tapi tidak lebih dari 80px */
+            width: 18%;
+            max-width: 80px;
+            min-width: 50px;
+            /* Agar tidak terlalu kecil */
+            display: flex;
+            align-items: center;
+        }
+
+        /* Khusus logo kanan agar rata kanan */
+        .logo-right {
+            justify-content: flex-end;
+        }
+
+        .logo-wrapper img {
+            width: 100%;
+            height: auto;
+            object-fit: contain;
+        }
+
+        .header-text {
+            flex-grow: 1;
+            /* Mengisi ruang tengah */
+            text-align: center;
+            padding: 0 5px;
+        }
+
+        .header-text h2 {
+            font-size: 16px;
+            /* Ukuran HP */
+            margin: 0;
+            color: #333;
+            text-transform: uppercase;
+            line-height: 1.2;
+        }
+
+        .header-text h3 {
+            font-size: 11px;
+            /* Ukuran HP */
+            margin: 4px 0 0 0;
+            color: #555;
+            font-weight: bold;
+        }
+
+        /* MEDIA QUERY LAPTOP/PC */
+        @media (min-width: 768px) {
+            .logo-wrapper {
+                max-width: 120px;
+            }
+
+            .header-text h2 {
+                font-size: 26px;
+            }
+
+            .header-text h3 {
+                font-size: 16px;
+            }
+        }
+
+        /* --- SELESAI: CSS HEADER --- */
 
         fieldset {
             border: 1px solid #ccc;
@@ -109,7 +180,7 @@
             </h2>
         </div> --}}
 
-        <div style="display: flex; align-items: center;justify-content: space-between; margin-bottom: 25px;">
+        {{-- <div style="display: flex; align-items: center;justify-content: space-between; margin-bottom: 25px;">
 
             <!-- Logo Danantara (KIRI) -->
             <img src="{{ asset('images/logo-danantara.png') }}" alt="Logo Danantara"
@@ -122,10 +193,26 @@
 
             <!-- Logo Company (KANAN) -->
             <img src="{{ asset('images/logo-company.png') }}" alt="Logo Company" style="width: 120px; height: auto;">
+        </div> --}}
+
+        {{-- Container Header: Flex Row (Baris) di semua ukuran layar --}}
+
+        <div class="header-container">
+
+            <div class="logo-wrapper">
+                <img src="{{ asset('images/logo-danantara.png') }}" alt="Danantara">
+            </div>
+
+            <div class="header-text">
+                <h2>Buku Tamu Digital</h2>
+                <h3>PT Mitratani Dua Tujuh</h3>
+            </div>
+
+            <div class="logo-wrapper logo-right">
+                <img src="{{ asset('images/logo-company.png') }}" alt="Mitratani">
+            </div>
+
         </div>
-
-
-
 
         {{-- Notifikasi sukses kustom --}}
         @if (session('success'))
@@ -170,7 +257,6 @@
                 }, 5000);
             }
         </script>
-
 
         {{-- Form --}}
         <form action="{{ route('bukutamu.store') }}" method="POST">

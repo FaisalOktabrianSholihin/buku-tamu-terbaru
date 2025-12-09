@@ -112,35 +112,86 @@
                 <hr class="my-6 border-gray-200 dark:border-gray-700">
 
                 {{-- SIGNATURE PAD SECTION --}}
-                {{-- SIGNATURE PAD SECTION --}}
+                {{-- Container Utama Signature Pad --}}
                 <div x-data="{
                     signaturePad: null,
+                
                     init() {
+                        // Init Signature Pad
                         let canvas = this.$refs.canvas;
                         this.signaturePad = new SignaturePad(canvas, {
                             backgroundColor: 'rgb(255, 255, 255)',
                             penColor: 'rgb(0, 0, 0)',
-                            minWidth: 0.5,
-                            maxWidth: 2.5
+                            minWidth: 1.5,
+                            maxWidth: 3.5
                         });
-                        this.resizeCanvas();
+                
+                        // Resize awal (kasih delay sedikit biar aman)
+                        setTimeout(() => this.resizeCanvas(), 100);
+                        setTimeout(() => this.resizeCanvas(), 500); // Double check
+                        setTimeout(() => this.resizeCanvas(), 1000); // Triple check
+                
+                        // Resize saat layar diputar/diubah
                         window.addEventListener('resize', () => this.resizeCanvas());
                     },
+                
+                    // --- FUNGSI UTAMA: MEMASTIKAN UKURAN PAS ---
                     resizeCanvas() {
                         let canvas = this.$refs.canvas;
+                        let container = this.$refs.container;
+                
+                        // Ambil ukuran kotak pembungkus yang sebenarnya di layar
+                        let rect = container.getBoundingClientRect();
+                
+                        // Kalau ukuran belum terbaca (misal masih hidden), stop dulu
+                        if (rect.width === 0 || rect.height === 0) return;
+                
+                        // Cek Rasio Layar (Retina Display support)
                         let ratio = Math.max(window.devicePixelRatio || 1, 1);
-                        canvas.width = canvas.offsetWidth * ratio;
-                        canvas.height = canvas.offsetHeight * ratio;
-                        canvas.getContext('2d').scale(ratio, ratio);
+                
+                        // Cek apakah ukuran internal SUDAH SAMA dengan ukuran tampilan?
+                        // Kalau sudah sama, tidak perlu reset (biar tanda tangan gak hilang)
+                        if (canvas.width === rect.width * ratio && canvas.height === rect.height * ratio) {
+                            return;
+                        }
+                
+                        // Simpan tanda tangan yang sudah ada (biar gak hilang saat resize)
+                        let data = this.signaturePad ? this.signaturePad.toData() : null;
+                
+                        // SET UKURAN INTERNAL = UKURAN TAMPILAN
+                        canvas.width = rect.width * ratio;
+                        canvas.height = rect.height * ratio;
+                
+                        // Scale context biar gak pecah
+                        let ctx = canvas.getContext('2d');
+                        ctx.scale(ratio, ratio);
+                
+                        // Kembalikan data tanda tangan lama
+                        this.signaturePad.clear();
+                        if (data) {
+                            this.signaturePad.fromData(data);
+                        }
                     },
+                
+                    // --- TRIK BARU: RESIZE SAAT DISENTUH ---
+                    // Ini menjamin ukuran pas sesaat sebelum user mulai nulis
+                    checkSize(e) {
+                        this.resizeCanvas();
+                    },
+                
                     clear() {
                         this.signaturePad.clear();
                         @this.set('ttd_satpam_base64', null);
                     },
-                    save() {
-                        if (!this.signaturePad.isEmpty()) {
-                            @this.set('ttd_satpam_base64', this.signaturePad.toDataURL());
+                
+                    save(methodName) {
+                        if (this.signaturePad.isEmpty()) {
+                            new Notification('Tanda tangan wajib diisi!').show();
+                            return;
                         }
+                        let dataUrl = this.signaturePad.toDataURL();
+                        @this.set('ttd_satpam_base64', dataUrl);
+                        @this.call(methodName);
                     }
                 }" wire:key="signature-pad-{{ $selectedTamu->id }}">
 
@@ -150,14 +201,20 @@
                         </label>
                     </div>
 
-                    {{-- Container Canvas --}}
-                    {{-- Border dashed hijau/hitam sesuai selera, background putih --}}
-                    <div class="w-full rounded-md overflow-hidden"
+                    {{-- 
+        PENTING: wire:ignore 
+        Mencegah Livewire mereset canvas jadi kecil lagi
+    --}}
+                    <div wire:ignore x-ref="container" {{-- Event listener untuk memaksa resize saat disentuh/diklik --}} x-on:mousedown="checkSize"
+                        x-on:touchstart.passive="checkSize" class="w-full rounded-md overflow-hidden relative"
                         style="height: 250px; border: 2px dashed #16a34a; background-color: #fff;">
-                        <canvas x-ref="canvas" class="w-full h-full block cursor-crosshair"></canvas>
+
+                        <canvas x-ref="canvas" class="w-full h-full block cursor-crosshair"
+                            style="touch-action: none; width: 100%; height: 100%;">
+                        </canvas>
+
                     </div>
 
-                    {{-- PERBAIKAN 2: Tombol Hapus di Bawah (Style Merah) --}}
                     <div class="mt-3">
                         <button type="button" @click="clear()"
                             class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded shadow-sm transition-colors duration-200">
@@ -165,15 +222,14 @@
                         </button>
                     </div>
 
-                    {{-- Tombol Aksi Utama --}}
                     <div class="grid grid-cols-2 gap-4 mt-8">
-                        <x-filament::button wire:click="simpanValidasi" color="success" size="lg"
-                            class="w-full shadow-lg" @click="save()">
+                        <x-filament::button color="success" size="lg" class="w-full shadow-lg"
+                            @click="save('simpanValidasi')">
                             <span class="font-bold">✅ SETUJU & MASUK</span>
                         </x-filament::button>
 
-                        <x-filament::button wire:click="simpanTolakValidasi" color="danger" size="lg"
-                            class="w-full shadow-lg" @click="save()">
+                        <x-filament::button color="danger" size="lg" class="w-full shadow-lg"
+                            @click="save('simpanTolakValidasi')">
                             <span class="font-bold">❌ TOLAK TAMU</span>
                         </x-filament::button>
                     </div>

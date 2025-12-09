@@ -20,6 +20,7 @@ class Tamu extends Model
         'penerima_tamu',
         'nopol_kendaraan',
         'bidang_usaha',
+        'no_seal',
         'id_divisi', // FK ke Divisi
         'id_status', // FK ke Status
         'id_visit_status', // FK ke visit status

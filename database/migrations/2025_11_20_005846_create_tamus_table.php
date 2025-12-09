@@ -21,7 +21,6 @@ return new class extends Migration
             $table->string('penerima_tamu');
             $table->string('nopol_kendaraan');
             $table->string('bidang_usaha');
-            // $table->string('status_tamu');
             $table->string('no_seal');
             $table->unsignedBigInteger('id_divisi')->nullable();
             $table->unsignedBigInteger('id_status')->nullable();

@@ -38,7 +38,7 @@
         }
 
         .label-col {
-            width: 40%;
+            width: 11%;
             background-color: #f0f0f0;
             font-weight: bold;
             font-size: 9px;
@@ -160,7 +160,8 @@
                                 266/06/F/J/DTKT/J
                             </td>
                             <td style="padding: 5px;">
-                                Tgl Terbit : {{ date('d-m-Y') }}
+                                {{-- Tgl Terbit : {{ date('d-m-Y') }} --}}
+                                Tgl : 08-12-2025
                             </td>
                         </tr>
 

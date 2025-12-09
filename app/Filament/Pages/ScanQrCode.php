@@ -15,6 +15,7 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Notifications\Notification;
 use Illuminate\Support\Facades\Storage;
 use BackedEnum;
+use Filament\Tables\Columns\ImageColumn;
 
 class ScanQrCode extends Page implements HasForms, HasTable
 {
@@ -121,7 +122,12 @@ class ScanQrCode extends Page implements HasForms, HasTable
                 TextColumn::make('created_at')->label('Tanggal')->date('d M Y H:i'),
                 TextColumn::make('nama'),
                 TextColumn::make('instansi'),
-                // TextColumn::make('status_tamu')->badge(),
+                // ImageColumn::make('tandaTangan.ttd_satpam') // Mengakses relasi tandaTangan -> kolom ttd_satpam
+                //     ->label('TTD')
+                //     ->disk('public') // Wajib public
+                //     ->size(60)
+                //     ->circular(),
+
             ])
             ->actions([
                 Action::make('proses_validasi')
