@@ -59,16 +59,38 @@ class TamusTable
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
-            ->filters(
-                [
-                    Filter::make('periode')
-                        ->form([
-                            DatePicker::make('created_from')->label('Tanggal Awal'),
-                            DatePicker::make('created_until')->label('Tanggal Akhir')->default(now()),
-                        ])
-                        ->query(fn(Builder $query) => $query)
-                ]
-            ) //
+            // ->filters(
+            //     [
+            //         Filter::make('periode')
+            //             ->form([
+            //                 DatePicker::make('created_from')->label('Tanggal Awal'),
+            //                 DatePicker::make('created_until')->label('Tanggal Akhir')->default(now()),
+            //             ])
+            //             ->query(fn(Builder $query) => $query)
+            //     ]
+            // ) //
+            ->filters([
+                Filter::make('periode')
+                    ->form([
+                        DatePicker::make('created_from')
+                            ->label('Tanggal Awal')
+                            ->default(now()), // Set default hari ini
+                        DatePicker::make('created_until')
+                            ->label('Tanggal Akhir')
+                            ->default(now()), // Set default hari ini
+                    ])
+                    ->query(function (Builder $query, array $data): Builder {
+                        return $query
+                            ->when(
+                                $data['created_from'],
+                                fn(Builder $query, $date) => $query->whereDate('created_at', '>=', $date),
+                            )
+                            ->when(
+                                $data['created_until'],
+                                fn(Builder $query, $date) => $query->whereDate('created_at', '<=', $date),
+                            );
+                    })
+            ])
             ->recordActions([
                 EditAction::make(),
                 ActionsAction::make('exportPdf')
@@ -104,7 +126,7 @@ class TamusTable
                 Action::make('exportExcel')
                     ->label('Export Excel')
                     ->icon('heroicon-o-arrow-down-tray')
-                    ->color('success')
+                    ->color('success') 
                     ->form([
                         DatePicker::make('start_date')->label('Tanggal Awal')->required(),
                         DatePicker::make('end_date')->label('Tanggal Akhir')->required(),

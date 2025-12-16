@@ -22,6 +22,7 @@ class UserForm
                 // DateTimePicker::make('email_verified_at'),
                 TextInput::make('password')
                     ->password()
+                    ->revealable()
                     ->required(),
                 Select::make('roles')
                     // ->multiple()
@@ -30,7 +31,7 @@ class UserForm
                     ->required(),
                 // TextInput::make('id_divisi')
                 //     ->numeric()
-                //     ->default(null),
+                //     ->default(null), 
             ]);
     }
 }

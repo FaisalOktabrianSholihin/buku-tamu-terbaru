@@ -4,11 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\Tamu;
 use App\Models\TamuPengiring;
+use App\Models\TandaTangan;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
-
-use App\Models\TandaTangan; // Load model baru
-use Illuminate\Support\Facades\Storage; // Untuk simpan file gambar
+use Illuminate\Support\Facades\Storage;
 
 class BukuTamuController extends Controller
 {
@@ -19,109 +18,101 @@ class BukuTamuController extends Controller
 
     public function store(Request $request)
     {
-        // Validasi
-        $request->validate([
-            'tanggal' => 'required|date',
-            'divisi' => 'required',
-            'penerima_tamu' => 'required|string',
-            'keperluan' => 'required|string',
+        // 1. Definisikan aturan dasar (Wajib untuk Suplier, Customer, DAN Umum)
+        $rules = [
+            'tanggal'         => 'required|date',
+            'status'          => 'required', // Ini sekarang dropdown paling atas
+            'divisi'          => 'required',
+            'nama'            => 'required|string',
+            'instansi'        => 'required|string',
             'nopol_kendaraan' => 'required|string',
-            'nama' => 'required|string',
-            'jabatan' => 'required|string',
-            'no_hp' => 'required|string',
-            'instansi' => 'required|string',
-            'bidang_usaha' => 'required|string',
-            'jumlah_tamu' => 'required|integer|min:1',
-        ]);
+            'keperluan'       => 'required|string',
+        ];
 
-        // --- MULAI LOGIKA GENERATE QR CODE ---
+        // 2. Logic Kondisional berdasarkan ID Status dari Database
+        // ID 3 = Umum (Sesuai gambar database Anda)
+        if ($request->status == '3') {
+            $rules['penerima_tamu'] = 'required|string';
+            $rules['jabatan']       = 'required|string';
+            $rules['no_hp']         = 'required|string';
+            $rules['bidang_usaha']  = 'required|string';
+            $rules['jumlah_tamu']   = 'required|integer|min:1';
+        }
 
-        // 1. Ambil waktu sekarang
+        // Jalankan Validasi
+        $request->validate($rules);
+
+        // --- Generate QR Code (Tetap Sama) ---
         $now = Carbon::now();
-
-        // 2. Buat format tanggal: 2 angka tahun, 2 bulan, 2 tanggal (cth: 251126)
         $dateCode = $now->format('ymd');
-
-        // 3. Kode Statis
         $staticCode = 'M27';
-
-        // 4. Hitung jumlah tamu yang dibuat HARI INI untuk menentukan urutan
-        // Kita gunakan created_at agar reset setiap hari baru
         $countToday = Tamu::whereDate('created_at', $now->toDateString())->count();
-
-        // 5. Tambahkan 1 untuk tamu saat ini dan format menjadi 4 digit (0001)
         $sequence = sprintf("%04d", $countToday + 1);
-
-        // 6. Gabungkan menjadi format: 251126.M27.0001
         $generatedQrCode = "{$dateCode}.{$staticCode}.{$sequence}";
 
+        // --- Persiapan Data Simpan ---
 
-        // --- SELESAI LOGIKA GENERATE QR CODE ---
+        // Cek apakah tamu umum atau bukan
+        $isUmum = ($request->status == '3');
 
         $tamu = Tamu::create([
-            'nama' => $request->nama,
-            'jabatan' => $request->jabatan,
-            'instansi' => $request->instansi,
-            'no_hp' => $request->no_hp,
-            'jumlah_tamu' => $request->jumlah_tamu,
-            'penerima_tamu' => $request->penerima_tamu,
+            'qr_code'         => $generatedQrCode,
+            'nama'            => $request->nama,
+            'instansi'        => $request->instansi,
             'nopol_kendaraan' => $request->nopol_kendaraan,
-            'bidang_usaha' => $request->bidang_usaha,
-            // 'status_tamu' => $request->status_tamu,
-            'id_divisi' => $request->divisi,
-            'id_status' => $request->status,
-            'keperluan' => $request->keperluan,
-            'qr_code' => $generatedQrCode,
+            'keperluan'       => $request->keperluan,
+            'id_status'       => $request->status, // Simpan ID status (1, 2,, 4 atau 3)
+            'id_divisi'       => $request->divisi,
+
+            // Jika BUKAN Umum (Suplier/Customer), isi default/null
+            'jabatan'         => $isUmum ? $request->jabatan : 'Driver/Kurir',
+            'no_hp'           => $isUmum ? $request->no_hp : '-',
+            'jumlah_tamu'     => $isUmum ? $request->jumlah_tamu : 1,
+            'penerima_tamu'   => $isUmum ? $request->penerima_tamu : '-',
+            'bidang_usaha'    => $isUmum ? $request->bidang_usaha : '-',
+
+            // id_divisi di-set NULL jika Suplier/Customer
+            // 'id_divisi'       => $isUmum ? $request->divisi : null,
         ]);
 
-        // ini untuk ttd 
-        if ($request->filled('ttd_tamu_base64')) { // Cek input hidden dari view
-
-            // Ambil data base64 (format: data:image/png;base64,.....)
+        // --- Simpan Tanda Tangan (Tetap Sama) ---
+        if ($request->filled('ttd_tamu_base64')) {
+            // ... kode simpan gambar ttd sama persis ...
             $image_parts = explode(";base64,", $request->ttd_tamu_base64);
-
             if (count($image_parts) == 2) {
                 $image_base64 = base64_decode($image_parts[1]);
-
-                // Buat nama file unik
                 $fileName = 'ttd_tamu_' . $tamu->id . '_' . time() . '.png';
                 $path = 'tanda_tangan/' . $fileName;
-
-                // Simpan fisik file ke storage/app/public/tanda_tangan
                 Storage::disk('public')->put($path, $image_base64);
 
-                // Simpan ke Tabel 'tanda_tangans'
                 TandaTangan::create([
-                    'id_tamu' => $tamu->id,   // Ambil ID dari tamu yg baru dibuat
-                    'ttd_tamu' => $path,      // Path file gambar
-                    // Kolom ttd_satpam, dll dibiarkan null dulu
+                    'id_tamu' => $tamu->id,
+                    'ttd_tamu' => $path,
                 ]);
             }
         }
 
-        // if ($request->has('nama_pengiring')) {
-        $list_nama = $request->input('nama_pengiring', []);
-        $list_jabatan = $request->input('jabatan_pengiring', []);
-        if (is_array($list_nama) && count($list_nama) > 0) {
+        // --- Simpan Pengiring (Hanya Jika Umum) ---
+        if ($isUmum) {
+            $list_nama = $request->input('nama_pengiring', []);
+            $list_jabatan = $request->input('jabatan_pengiring', []);
 
-            foreach ($list_nama as $key => $nama) {
-                // Hanya simpan jika nama tidak kosong
-                if (!empty($nama)) {
-
-                    TamuPengiring::create([
-                        // Sesuai field di Model Anda:
-                        'id_tamu' => $tamu->id,  // ID dari tamu utama yg baru dibuat
-                        'nama'    => $nama,
-                        'jabatan' => $list_jabatan[$key] ?? '-', // Pakai strip jika jabatan kosong
-                    ]);
+            if (is_array($list_nama) && count($list_nama) > 0) {
+                foreach ($list_nama as $key => $nama) {
+                    if (!empty($nama)) {
+                        TamuPengiring::create([
+                            'id_tamu' => $tamu->id,
+                            'nama'    => $nama,
+                            'jabatan' => $list_jabatan[$key] ?? '-',
+                        ]);
+                    }
                 }
             }
         }
-        // }
 
-        // return redirect()->back()->with('success', 'Data tamu berhasil disimpan. Kode QR: ' . $generatedQrCode);
+        // Return tetap sama
         return redirect()->back()
-            ->with('success', 'Data berhasil disimpan. QR Code sedang didownload...')
+            ->with('success', 'Data berhasil disimpan...')
             ->with('new_qr_code', $generatedQrCode)
             ->with('nama_tamu', $tamu->nama);
     }

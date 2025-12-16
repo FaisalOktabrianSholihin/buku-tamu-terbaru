@@ -31,6 +31,18 @@ class AdminPanelProvider extends PanelProvider
             ->login()
             ->font('Poppins')
             ->brandName('Buku Tamu')
+            ->renderHook('panels::head', function () {
+                return <<<'HTML'
+                    <link rel="manifest" href="/manifest.json">
+                    <meta name="theme-color" content="#ffffff">
+
+                    <script>
+                        if ('serviceWorker' in navigator) {
+                            navigator.serviceWorker.register('/sw.js');
+                        }
+                    </script>
+                HTML;
+            })
             ->favicon(asset('images/logo-kunjunganku.png'))
             ->colors([
                 'primary' => Color::Green,

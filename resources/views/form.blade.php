@@ -259,10 +259,29 @@
         </script>
 
         {{-- Form --}}
+        {{-- ... kode sebelumnya (Header, dll) ... --}}
+
+        {{-- ... Bagian Header (Logo, dll) tetap sama ... --}}
+
         <form action="{{ route('bukutamu.store') }}" method="POST">
             @csrf
 
-            {{-- INFORMASI KUNJUNGAN --}}
+            {{-- 1. JENIS KUNJUNGAN (Mengambil dari tabel statuses) --}}
+            <fieldset>
+                <legend>Jenis Kunjungan</legend>
+                <div class="form-group">
+                    <label>Pilih Kategori Tamu:</label>
+                    <select name="status" id="pilih_status" required onchange="toggleFormFields()">
+                        <option value="">-- Pilih Jenis Tamu --</option>
+                        {{-- ID 1=Suplier, 2=Customer, 3=Umum --}}
+                        @foreach (\App\Models\Status::all() as $s)
+                            <option value="{{ $s->id }}">{{ $s->nama_status }}</option>
+                        @endforeach
+                    </select>
+                </div>
+            </fieldset>
+
+            {{-- 2. INFORMASI KUNJUNGAN --}}
             <fieldset>
                 <legend>Informasi Kunjungan</legend>
 
@@ -271,8 +290,9 @@
                     <input type="date" name="tanggal" value="{{ date('Y-m-d') }}" required readonly>
                 </div>
 
+                {{-- [BARU] DIVISI SEKARANG MUNCUL UNTUK SEMUA (Supplier/Customer/Umum) --}}
                 <div class="form-group">
-                    <label>Divisi yang Tujuan:</label>
+                    <label>Divisi yang Dituju:</label>
                     <select name="divisi" required>
                         <option value="">-- Pilih Divisi --</option>
                         @foreach (\App\Models\Divisi::all() as $d)
@@ -281,14 +301,19 @@
                     </select>
                 </div>
 
-                <div class="form-group">
-                    <label>Penerima Tamu:</label>
-                    <input type="text" name="penerima_tamu" placeholder="Nama petugas yang menerima" required>
+                {{-- Field Penerima Tamu (HANYA UNTUK UMUM / ID 3) --}}
+                {{-- Supplier/Customer biasanya tidak perlu isi nama orang spesifik, cukup divisinya saja --}}
+                <div class="field-umum">
+                    <div class="form-group">
+                        <label>Penerima Tamu:</label>
+                        <input type="text" name="penerima_tamu" class="input-umum"
+                            placeholder="Nama petugas yang menerima">
+                    </div>
                 </div>
 
                 <div class="form-group">
                     <label>Keperluan:</label>
-                    <textarea name="keperluan" rows="3" required></textarea>
+                    <textarea name="keperluan" rows="3" required placeholder="Contoh: Kirim Barang / Meeting / dll"></textarea>
                 </div>
 
                 <div class="form-group">
@@ -297,62 +322,55 @@
                 </div>
             </fieldset>
 
-            {{-- TAMU UTAMA --}}
+            {{-- 3. DATA TAMU / DRIVER --}}
             <fieldset>
-                <legend>Data Tamu Utama</legend>
+                <legend>Identitas Tamu</legend>
 
                 <div class="form-group">
-                    <label>Nama Tamu Utama:</label>
-                    <input type="text" name="nama" required>
+                    <label id="label-nama">Nama Tamu Utama:</label>
+                    <input type="text" name="nama" required placeholder="Nama Lengkap / Nama Driver">
                 </div>
 
                 <div class="form-group">
-                    <label>Jabatan:</label>
-                    <input type="text" name="jabatan" required>
+                    <label>Nama Perusahaan / Instansi:</label>
+                    <input type="text" name="instansi" required placeholder="Asal Perusahaan">
                 </div>
 
-                <div class="form-group">
-                    <label>No HP:</label>
-                    <input type="number" name="no_hp" required>
+                {{-- Field Detail (HANYA UNTUK UMUM / ID 3) --}}
+                <div class="field-umum">
+                    <div class="form-group">
+                        <label>Jabatan:</label>
+                        <input type="text" name="jabatan" class="input-umum">
+                    </div>
+
+                    <div class="form-group">
+                        <label>No HP:</label>
+                        <input type="number" name="no_hp" class="input-umum">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Bidang Usaha:</label>
+                        <input type="text" name="bidang_usaha" class="input-umum">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Jumlah Tamu Total (Termasuk Utama):</label>
+                        <input type="number" id="jumlah_tamu" name="jumlah_tamu" min="1" value="1"
+                            class="input-umum">
+                    </div>
                 </div>
 
-                <div class="form-group">
-                    <label>Nama Perusahaan:</label>
-                    <input type="text" name="instansi" required>
-                </div>
-
-                <div class="form-group">
-                    <label>Bidang Usaha:</label>
-                    <input type="text" name="bidang_usaha" required>
-                </div>
-
-                <div class="form-group">
-                    <label>Status:</label>
-                    <select name="status" required>
-                        <option value="">-- Pilih Status --</option>
-                        @foreach (\App\Models\Status::all() as $d)
-                            <option value="{{ $d->id }}">{{ $d->nama_status }}</option>
-                        @endforeach
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label>Jumlah Tamu Total (Termasuk Utama):</label>
-                    {{-- Tambahkan ID di sini untuk dipanggil JS --}}
-                    <input type="number" id="jumlah_tamu" name="jumlah_tamu" min="1" value="1" required>
-                </div>
             </fieldset>
 
-            {{-- PENGIRING (DINAMIS) --}}
+            {{-- 4. PENGIRING (Hanya Umum / ID 3) --}}
             <fieldset id="fieldset-pengiring" style="display: none;">
                 <legend>Data Pengiring</legend>
                 <div id="container-pengiring"></div>
             </fieldset>
 
-            {{-- PERSETUJUAN --}}
+            {{-- 5. PERSETUJUAN & TTD (Tetap sama) --}}
             <fieldset>
-                <legend>Persetujuan Tamu</legend>
-
+                <legend>Persetujuan & Tanda Tangan</legend>
                 <div style="margin-bottom: 10px;">
                     <label style="font-weight: bold; cursor:pointer;">
                         <input type="checkbox" id="cek_persetujuan" style="transform: scale(1.3); margin-right: 8px;"
@@ -360,83 +378,102 @@
                         Saya telah membaca dan menyetujui peraturan tamu
                     </label>
                 </div>
-            </fieldset>
 
-            <!-- POPUP -->
-            <div id="popup-rules"
-                style="display:none; position:fixed; top:0; left:0; width:100%; height:100%;
-            background:rgba(0,0,0,0.6); z-index:9999;">
-
-                <div
-                    style="background:white; width:90%; max-width:650px; margin:8% auto; padding:25px; border-radius:8px;">
-                    {{-- <h3 style="margin-top:0;">Peraturan Tamu Perusahaan</h3>
-
-                    <ol style="margin-left:20px; font-size:15px;">
-                        <li>Dilarang membawa barang berbahaya.</li>
-                        <li>Wajib menjaga ketertiban dan kebersihan area perusahaan.</li>
-                        <li>Wajib mengikuti instruksi keamanan dari petugas.</li>
-                        <li>Dilarang mengambil foto/video tanpa izin.</li>
-                    </ol> --}}
-
-                    <h3 style="margin-top:0;">Peraturan Tamu Perusahaan</h3>
-
-                    <ol style="margin-left:20px; font-size:15px;">
-                        <li>Dilarang memasuki area yang teridentifikasi area terbatas tanpa pendamping. Jika
-                            diperlukan
-                            hubungi petugas.</li>
-                        <li>Semua tamu dimohon untuk memakai Visitor ID yang telah disediakan.</li>
-                        <li>Membuang sampah & puntung rokok pada tempatnya, dan tidak diperkenankan meludah
-                            sembarangan.
-                        </li>
-                        <li>Merokok hanya diperbolehkan di area khusus merokok (smoking area).</li>
-                        <li>Tidak diperkenankan makan, minum dan atau membawa makanan, minuman yang memungkinkan
-                            mengandung allergen ke dalam ruang proses.</li>
-                        <li>Mencuci tangan sebelum masuk ruang proses.</li>
-                        <li>Gunakan pakaian (khusus) sesuai dengan yang dipersyaratkan jika memasuki area tertentu
-                            (dalam ruang proses/pengolahan), dan dilarang mengenakannya di area luar proses.</li>
-                        <li>Tidak diperkenankan mengambil dokumentasi & membawa ponsel, kamera, serta alat komunikasi
-                            lain di area proses tanpa izin (Pabrik/pengolahan, gudang, utilitas).</li>
-                        <li>Dilarang membawa produk jadi dan barang-barang lain keluar area tanpa seijin dari
-                            manajemen
-                            PT Mitratani Dua Tujuh.</li>
-                        <li>Semua tamu diharap menjaga sarana dan prasarana di area PT. Mitratani Dua Tujuh.</li>
-                        <li>Dilarang memberikan tip ke petugas karyawan Mitratani Dua Tujuh.</li>
-                        <li>Tamu/Visitor wajib melapor dan menyerahkan ID Card, Form Visitor sebelum meninggalkan
-                            area
-                            PT Mitratani Dua Tujuh.</li>
-                        <li>Bila melihat keadaan darurat mohon hubungi pihak berwenang (security, pihak terkait).
-                        </li>
-                        <li>Berpakaian rapi dan sopan (tidak diperkenankan memakai celana pendek dan singlet).</li>
-                    </ol>
-
-                    <button id="btn-setuju"
-                        style="margin-top:20px; width:100%; padding:10px; background:#00620c; 
-                       color:white; border:none; border-radius:5px; cursor:pointer;">
-                        Setuju & Lanjutkan
-                    </button>
-                </div>
-            </div>
-
-            {{-- AREA TANDA TANGAN --}}
-            <fieldset>
-                <legend>Tanda Tangan Tamu</legend>
                 <div class="form-group">
                     <p style="font-size: 0.9em; color: #666;">Silakan tanda tangan di kotak ini:</p>
-
                     <div style="border: 2px dashed #00620c; background: #fff; border-radius: 5px;">
                         <canvas id="signature-canvas" style="width: 100%; height: 200px; display: block;"></canvas>
                     </div>
-
                     <button type="button" id="clear-signature"
                         style="margin-top: 10px; background: #d9534f; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer;">Hapus
                         Tanda Tangan</button>
-
                     <input type="hidden" name="ttd_tamu_base64" id="ttd_tamu_base64">
                 </div>
             </fieldset>
 
-            <button type="submit" class="submit-button">Simpan Data Tamu</button>
+            <button type="submit" class="submit-button">Simpan Data</button>
         </form>
+
+        <script>
+            // function toggleFormFields() {
+            //     const statusId = document.getElementById('pilih_status').value;
+            //     const fieldsUmum = document.querySelectorAll('.field-umum');
+            //     const inputsUmum = document.querySelectorAll('.input-umum');
+            //     const labelNama = document.getElementById('label-nama');
+            //     const fieldsetPengiring = document.getElementById('fieldset-pengiring');
+
+            //     // Logic: ID 3 = UMUM (Form Lengkap)
+            //     if (statusId == '3') {
+            //         fieldsUmum.forEach(el => el.style.display = 'block');
+            //         inputsUmum.forEach(input => input.setAttribute('required', 'required'));
+            //         labelNama.innerText = "Nama Tamu Utama:";
+
+            //         const inputJml = document.getElementById('jumlah_tamu');
+            //         if (inputJml.value > 1) fieldsetPengiring.style.display = 'block';
+
+            //     } else {
+            //         // ID 1 (Suplier) & 2 (Customer) -> FORM RINGKAS tapi Tetap ada DIVISI (karena Divisi sudah diluar field-umum)
+            //         fieldsUmum.forEach(el => el.style.display = 'none');
+
+            //         inputsUmum.forEach(input => {
+            //             input.removeAttribute('required');
+            //             input.value = '';
+            //         });
+
+            //         labelNama.innerText = "Nama Driver / Pengirim:";
+            //         fieldsetPengiring.style.display = 'none';
+            //     }
+            // }
+
+            function toggleFormFields() {
+                const statusId = document.getElementById('pilih_status').value;
+                const fieldsUmum = document.querySelectorAll('.field-umum');
+                const inputsUmum = document.querySelectorAll('.input-umum');
+                const labelNama = document.getElementById('label-nama');
+                const fieldsetPengiring = document.getElementById('fieldset-pengiring');
+
+                // Logic: ID 3 = UMUM (Form Lengkap)
+                if (statusId == '3') {
+                    fieldsUmum.forEach(el => el.style.display = 'block');
+                    inputsUmum.forEach(input => input.setAttribute('required', 'required'));
+                    labelNama.innerText = "Nama Tamu Utama:";
+
+                    const inputJml = document.getElementById('jumlah_tamu');
+                    if (inputJml.value > 1) fieldsetPengiring.style.display = 'block';
+
+                } else if (statusId == '1' || statusId == '2' || statusId == '4') {
+                    // ID 1 (Suplier), 2 (Customer), & 4 (Ekspedisi) -> FORM RINGKAS
+                    fieldsUmum.forEach(el => el.style.display = 'none');
+
+                    inputsUmum.forEach(input => {
+                        input.removeAttribute('required');
+                        input.value = '';
+                    });
+
+                    // Ganti label nama untuk Ekspedisi, Supplier, dan Customer
+                    labelNama.innerText = "Nama Driver / Pengirim:";
+                    fieldsetPengiring.style.display = 'none';
+                }
+            }
+
+
+            document.addEventListener('DOMContentLoaded', function() {
+                toggleFormFields(); // Jalankan saat load
+
+                // PENTING: Event listener untuk jumlah tamu agar field pengiring dinamis
+                // Hanya jalan kalau status ID = 3
+                const inputJml = document.getElementById('jumlah_tamu');
+                if (inputJml) {
+                    inputJml.addEventListener('input', function() {
+                        const statusId = document.getElementById('pilih_status').value;
+                        if (statusId == '3') {
+                            // Panggil fungsi generatePengiringForms() yang sudah ada di script lama Anda
+                            if (typeof generatePengiringForms === 'function') generatePengiringForms();
+                        }
+                    });
+                }
+            });
+        </script>
 
         <div style="text-align: center; margin-top: 20px;">
             <a href="/admin/login" style="color: #333; text-decoration: none; font-weight: 600; font-size: 14px;">

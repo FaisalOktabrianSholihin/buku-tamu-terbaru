@@ -151,11 +151,11 @@ class ValidasiPenerimaTamu extends Page implements HasForms, HasTable
         }
 
         $this->selectedTamu = $tamu;
-
+ 
         // Pindahkan data DB ke properti form agar bisa diedit
         $this->nama = $tamu->nama;
         $this->instansi = $tamu->instansi;
-        $this->keperluan = $tamu->keperluan;
+        $this->keperluan = $tamu->keperluan;    
         $this->penerima_tamu = $tamu->penerima_tamu;
         $this->jumlah_tamu = $tamu->jumlah_tamu;
         $this->nopol_kendaraan = $tamu->nopol_kendaraan;
@@ -223,7 +223,7 @@ class ValidasiPenerimaTamu extends Page implements HasForms, HasTable
             ['id_tamu' => $tamuId],
             [
                 'ttd_penerima' => 'ttd_penerima/' . $filename,
-                'nama_penerima' => auth()->user()->name,
+                // 'nama_penerima' => auth()->user()->name,
                 'updated_at' => now(),
             ]
         );
